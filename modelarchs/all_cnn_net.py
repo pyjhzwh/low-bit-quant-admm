@@ -52,7 +52,7 @@ class all_cnn_c(nn.Module):
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                n = m.kernel_size[0] * m.kernel_size[1] * m.in_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
                 #nn.init.normal_(m.weight)
                 #nn.init.constant_(m.bias,0)
@@ -76,8 +76,8 @@ class all_cnn_c(nn.Module):
 
     
     def forward(self,x):
-        if self.ds < 32:
-            x = downsample(x, self.ds)
+        #if self.ds < 32:
+            #x = downsample(x, self.ds)
 
         x = self.dropout0(x)
         

@@ -21,13 +21,14 @@ class admm_op():
         self.s = []
 
         for key, value in model.named_parameters():
-            #if 'conv' in key:
-            self.W.append(value)
-            self.preW.append(value.clone())
-            self.Z.append(value.data.clone())
-            self.U.append(value.data.clone().zero_())
-            self.r.append(value.data.clone().zero_())
-            self.s.append(value.data.clone().zero_())
+            if '.0.weight' in key:
+                print(key)
+                self.W.append(value)
+                self.preW.append(value.clone())
+                self.Z.append(value.data.clone())
+                self.U.append(value.data.clone().zero_())
+                self.r.append(value.data.clone().zero_())
+                self.s.append(value.data.clone().zero_())
 
         self.b = b #bits of each layer
         self.a = torch.zeros((len(self.W)),dtype=torch.float) # a is the scale factor of quatized data
@@ -123,16 +124,31 @@ class admm_op():
         if epoch % self.admm_iter !=0:
             return
         print('\n' + '-' * 30)
-        for i, (key, value) in enumerate(self.model.named_parameters()):
-            print(key)
-            print('W val:',value.data.view(1,-1))
+        i = 0
+        for key, value in self.model.named_parameters():
+            if '.0.weight' in key:
+                print(key)
+                print('W val:',self.W[i].data.view(1,-1))
+                print('Z val:',self.Z[i].data.view(1,-1))
+                print('a val:',self.a[i])
+                print('2-norm of W and Z:',torch.norm(self.r[i].view(1,-1)))
+                print('rho val:',self.rho[i])
+                i = i+1
+        '''
+        for i in range(len(W)):
+            print(self.model.named_parameters()[i][0])
+            print('W val:',self.W[i].data.view(1,-1))
             print('Z val:',self.Z[i].data.view(1,-1))
             print('a val:',self.a[i])
             print('2-norm of W and Z:',torch.norm(self.r[i].view(1,-1)))
             print('rho val:',self.rho[i])
+        '''
         print('\n' + '-' * 30)
 
     def apply_quantval(self):
 
-        for i, (key, value) in enumerate(self.model.named_parameters()):
-            self.model.state_dict()[key].copy_(self.Z[i])
+        i = 0
+        for key, value in self.model.named_parameters():
+            if '.0.weight' in key:
+                self.model.state_dict()[key].copy_(self.Z[i])
+                i = i + 1
