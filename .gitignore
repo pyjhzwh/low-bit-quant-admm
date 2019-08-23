@@ -1,0 +1,6 @@
+**/*.log
+**/*.pyc
+data/**
+saved_models/**
+**/*.back
+**/*.swp
