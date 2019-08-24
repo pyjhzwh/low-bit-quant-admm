@@ -24,7 +24,7 @@ def downsample(data, outsize=28):
 
 
 
-class all_cnn_c(nn.Module):
+class all_cnn_net(nn.Module):
     def __init__(self, nclass=10, ds=False):
         super(all_cnn_c,self).__init__()
         self.nclass = nclass

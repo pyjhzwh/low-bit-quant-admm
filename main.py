@@ -71,6 +71,10 @@ def test(val_loader, model, epoch, args):
         print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
               .format(top1=top1, top5=top5))
 
+        if args.admm:
+            if args.evaluate:
+                weightsdistribute(model)
+
     return top1.avg
 
 def mixtest(val_loader, model_big, model_small, epoch, args):
@@ -289,8 +293,10 @@ if __name__=='__main__':
                     default=False, help='use admm to quantize weights')
     parser.add_argument('--admm-iter', default=10, type=int,
                     help='admm iter')
-    parser.add_argument('--rho', default=1e-3, type=float,
+    parser.add_argument('--rho', default=1e-4, type=float,
                     help='admm rho parameter')
+    parser.add_argument('--bits', default = [2,2,2,2,2,2,2,2,2], type = int,
+                    nargs = '*', help = ' num of bits for each layer')
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     print(args)
@@ -390,7 +396,7 @@ if __name__=='__main__':
 
     elif args.arch == 'all_cnn_c':
         if not args.mix:
-            model = modelarchs.all_cnn_c(nclass=nclass,ds=args.ds)
+            model = modelarchs.all_cnn_c()
 
     #print("--------model state dict--------")
     #for key, _ in model.named_parameters():
@@ -447,9 +453,9 @@ if __name__=='__main__':
     # admm
 
     if args.admm:
-        if args.arch == 'all_cnn_c':
-            bits = [2,2,2,2,2,2,2,2,2] 
-        admm = admm.admm_op(model,b=bits,admm_iter=args.admm_iter)
+        #if args.arch == 'all_cnn_c':
+            #bits = [1,2,2,2,2,2,2,2,2] 
+        admm = admm.admm_op(model,b=args.bits,admm_iter=args.admm_iter)
 
 
     ''' evaluate model accuracy and loss only '''
@@ -480,3 +486,14 @@ if __name__=='__main__':
         # save the last quantized value
         save_state(model,acc,epoch,args, optimizer, True)
         weightsdistribute(model)
+        total_bit = 0
+        total_param = 0
+        i = 0
+        for key, value in model.named_parameters():
+            if '.0.weight' in key:
+                total_param = total_param + value.numel()
+                total_bit = total_bit + value.numel() * args.bits[i]
+                i = i + 1
+
+        print('aver bits: {:10d} / {:5d} = {:5.3f}'.format(total_bit, total_param, total_bit / total_param))
+

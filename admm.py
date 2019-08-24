@@ -9,7 +9,7 @@ class admm_op():
     # ADMM opertions to do weight quantization
 
 
-    def __init__ (self, model, b, admm_iter=10, rho=1e-3, mu=10, tau_incr=2, tau_decr=2):
+    def __init__ (self, model, b, admm_iter=10, rho=1e-4, mu=10, tau_incr=2, tau_decr=2):
         super(admm_op, self).__init__()
         self.model = model
 
@@ -25,6 +25,7 @@ class admm_op():
                 print(key)
                 self.W.append(value)
                 self.preW.append(value.clone())
+                #print(value.data.view(1,-1))
                 self.Z.append(value.data.clone())
                 self.U.append(value.data.clone().zero_())
                 self.r.append(value.data.clone().zero_())
@@ -68,9 +69,6 @@ class admm_op():
                 Vi = (self.W[i] + self.U[i])#.view(-1,1)
                 Qi = (self.Z[i] / self.a[i])#.view(-1,1)
 
-                #print("Vi.size()",Vi.size())
-                #print("Qi.size()",Qi.size())
-
                 # update a
                 #self.a[i] = torch.matmul(torch.t(Vi),Qi) / (torch.matmul(torch.t(Qi),Qi))
                 self.a[i] = torch.sum(torch.mul(Vi,Qi)) / torch.sum(torch.mul(Qi,Qi))
@@ -92,6 +90,10 @@ class admm_op():
                 self.s[i] = self.rho[i] * (self.W[i].data - self.preW[i].data)
                 norm_r = torch.norm(self.r[i].view(1,-1))#np.linalg.norm(r)
                 norm_s = torch.norm(self.s[i].view(1,-1))#np.linalg.norm(s)
+                #print('w val:',self.W[i].data.view(1,-1))
+                #print('prew val:', self.preW[i].data.view(1,-1))
+                #print('norm_r:',norm_r)
+                #print('norm_s:',norm_s)
                 if norm_r > self.mu * norm_s:
                     self.rho[i] = self.rho[i] * self.tau_incr
                     # the scaled dual variable u = (1/ρ)y must also be rescaled
@@ -107,6 +109,10 @@ class admm_op():
 
                 #epri = sqrt(rho[i]) * erel + erel * np.linalg.norm(W[i].data) 
                 #edual =  * eabs + erel * np.linalg.norm(U[i])
+                self.preW[i] = self.W[i].clone()
+
+        # store the current W to preW
+        #self.preW = self.W.copy()
 
 
     def loss_grad(self):
@@ -117,8 +123,6 @@ class admm_op():
             grad = grad * self.rho[i]
             self.W[i].grad.data += grad
 
-        # store the current W to preW
-        self.preW = self.W.copy()
 
     def print_info(self, epoch):
         if epoch % self.admm_iter !=0:
@@ -132,6 +136,7 @@ class admm_op():
                 print('Z val:',self.Z[i].data.view(1,-1))
                 print('a val:',self.a[i])
                 print('2-norm of W and Z:',torch.norm(self.r[i].view(1,-1)))
+                print('L2 norm of prime residual:',torch.norm(self.s[i].view(1,-1)))
                 print('rho val:',self.rho[i])
                 i = i+1
         '''
