@@ -4,6 +4,7 @@ import torch.nn as nn
 from math import *
 import numpy as np
 
+layerdict = ['module.conv1.0.weight', 'module.conv2.0.weight', 'module.conv3.0.weight','module.conv4.0.weight','module.conv5.0.weight','module.conv6.0.weight','module.conv7.0.weight']
 class admm_op():
 
     # ADMM opertions to do weight quantization
@@ -21,7 +22,7 @@ class admm_op():
         self.s = []
 
         for key, value in model.named_parameters():
-            if '.0.weight' in key:
+            if key in layerdict:
                 print(key)
                 self.W.append(value)
                 self.preW.append(value.clone())
@@ -64,55 +65,69 @@ class admm_op():
 
         if epoch % self.admm_iter != 0:
             return
-        with torch.no_grad():
-            for i in range(len(self.W)):
-                Vi = (self.W[i] + self.U[i])#.view(-1,1)
-                Qi = (self.Z[i] / self.a[i])#.view(-1,1)
+        #with torch.no_grad():
+        for i in range(len(self.W)):
+            Vi = (self.W[i] + self.U[i])#.view(-1,1)
+            Qi = (self.Z[i] / self.a[i])#.view(-1,1)
 
-                # update a
-                #self.a[i] = torch.matmul(torch.t(Vi),Qi) / (torch.matmul(torch.t(Qi),Qi))
-                self.a[i] = torch.sum(torch.mul(Vi,Qi)) / torch.sum(torch.mul(Qi,Qi))
+            # update a
+            #self.a[i] = torch.matmul(torch.t(Vi),Qi) / (torch.matmul(torch.t(Qi),Qi))
+            self.a[i] = torch.sum(torch.mul(Vi,Qi)) / torch.sum(torch.mul(Qi,Qi))
 
-                #update Z
-                Qi = Vi/self.a[i]
-                Qi = torch.round((Qi-1)/2)*2+1
-                Qi = torch.clamp(Qi,-(pow(2,self.b[i])-1),pow(2,self.b[i])-1)
-                self.Z[i] = Qi * self.a[i] 
+            #update Z
+            # quantized values are uniform
+            
+            Qi = Vi/self.a[i]
+            Qi = torch.round((Qi-1)/2)*2+1
+            Qi = torch.clamp(Qi,-(pow(2,self.b[i])-1),pow(2,self.b[i])-1)
+            
+
+            '''
+            Qi = Vi/self.a[i]
+            pos = (Qi >= 0).type(torch.float)
+            #neg = Qi < 0
+            Qi = torch.round(torch.log2(Qi*(2*pos-1)))
+            Qi = torch.clamp(Qi, 0, pow(2, self.b[i]-1))
+            Qi = torch.pow(2, Qi) * (2*pos-1)
+            '''
+            
+            # quantized values are 2^n
+            # tbc
+
+            self.Z[i] = Qi * self.a[i] 
 
 
-                # update U
-                if epoch > 0:
-                    # For epoch = 0, U is fixed to all zero.
-                    self.U[i] = self.U[i] + self.W[i].data - self.Z[i]
+            # update U
+            if epoch > 0:
+                # For epoch = 0, U is fixed to all zero.
+                self.U[i] = self.U[i] + self.W[i].data - self.Z[i]
 
-                # update rho
-                self.r[i] = self.W[i].data - self.Z[i]
-                self.s[i] = self.rho[i] * (self.W[i].data - self.preW[i].data)
-                norm_r = torch.norm(self.r[i].view(1,-1))#np.linalg.norm(r)
-                norm_s = torch.norm(self.s[i].view(1,-1))#np.linalg.norm(s)
-                #print('w val:',self.W[i].data.view(1,-1))
-                #print('prew val:', self.preW[i].data.view(1,-1))
-                #print('norm_r:',norm_r)
-                #print('norm_s:',norm_s)
-                if norm_r > self.mu * norm_s:
-                    self.rho[i] = self.rho[i] * self.tau_incr
-                    # the scaled dual variable u = (1/ρ)y must also be rescaled
-                    #after updating ρ
-                    self.U[i] = self.U[i] / self.tau_incr
-                elif norm_s > self.mu * norm_r:
-                    self.rho[i] = self.rho[i] / self.tau_decr
-                    # the scaled dual variable u = (1/ρ)y must also be rescaled
-                    #after updating ρ
-                    self.U[i] = self.U[i] * self.tau_decr
-                #else:
-                    # do not updata rho
+            # update rho
+            self.r[i] = self.W[i].data - self.Z[i]
+            self.s[i] = self.rho[i] * (self.W[i].data - self.preW[i].data)
+            norm_r = torch.norm(self.r[i].view(1,-1))#np.linalg.norm(r)
+            norm_s = torch.norm(self.s[i].view(1,-1))#np.linalg.norm(s)
+            #print('w val:',self.W[i].data.view(1,-1))
+            #print('prew val:', self.preW[i].data.view(1,-1))
+            #print('norm_r:',norm_r)
+            #print('norm_s:',norm_s)
+            if norm_r > self.mu * norm_s:
+                self.rho[i] = self.rho[i] * self.tau_incr
+                # the scaled dual variable u = (1/ρ)y must also be rescaled
+                #after updating ρ
+                self.U[i] = self.U[i] / self.tau_incr
+            elif norm_s > self.mu * norm_r:
+                self.rho[i] = self.rho[i] / self.tau_decr
+                # the scaled dual variable u = (1/ρ)y must also be rescaled
+                #after updating ρ
+                self.U[i] = self.U[i] * self.tau_decr
+            #else:
+                # do not updata rho
 
-                #epri = sqrt(rho[i]) * erel + erel * np.linalg.norm(W[i].data) 
-                #edual =  * eabs + erel * np.linalg.norm(U[i])
-                self.preW[i] = self.W[i].clone()
+            #epri = sqrt(rho[i]) * erel + erel * np.linalg.norm(W[i].data) 
+            #edual =  * eabs + erel * np.linalg.norm(U[i])
+            self.preW[i] = self.W[i].clone()
 
-        # store the current W to preW
-        #self.preW = self.W.copy()
 
 
     def loss_grad(self):
@@ -130,7 +145,7 @@ class admm_op():
         print('\n' + '-' * 30)
         i = 0
         for key, value in self.model.named_parameters():
-            if '.0.weight' in key:
+            if key in layerdict:
                 print(key)
                 print('W val:',self.W[i].data.view(1,-1))
                 print('Z val:',self.Z[i].data.view(1,-1))
@@ -154,6 +169,6 @@ class admm_op():
 
         i = 0
         for key, value in self.model.named_parameters():
-            if '.0.weight' in key:
+            if key in layerdict:
                 self.model.state_dict()[key].copy_(self.Z[i])
                 i = i + 1

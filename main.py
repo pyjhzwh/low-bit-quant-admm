@@ -221,7 +221,7 @@ def train(train_loader,optimizer, model, epoch, args):
         if i % 100 == 0:
             progress.display(i,optimizer)
 
-    # update U,Z in W
+    # update U,Z every admm_iter
     if args.admm:
         admm.update(epoch)
         admm.print_info(epoch)
@@ -486,6 +486,7 @@ if __name__=='__main__':
         # save the last quantized value
         save_state(model,acc,epoch,args, optimizer, True)
         weightsdistribute(model)
+        '''
         total_bit = 0
         total_param = 0
         i = 0
@@ -496,4 +497,5 @@ if __name__=='__main__':
                 i = i + 1
 
         print('aver bits: {:10d} / {:5d} = {:5.3f}'.format(total_bit, total_param, total_bit / total_param))
+        '''
 
