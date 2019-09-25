@@ -10,7 +10,7 @@ class admm_op():
     # ADMM opertions to do weight quantization
 
 
-    def __init__ (self, model, b, admm_iter=10, rho=1e-4, mu=10, tau_incr=2, tau_decr=2):
+    def __init__ (self, model, b, admm_iter=10, rho=1e-4, mu=10, tau_incr=1.5, tau_decr=1.5):
         super(admm_op, self).__init__()
         self.model = model
 
@@ -18,6 +18,7 @@ class admm_op():
         self.U = []
         self.Z = []
         self.preW = []
+        self.storeW = []
         self.r = []
         self.s = []
 
@@ -26,6 +27,7 @@ class admm_op():
                 print(key)
                 self.W.append(value)
                 self.preW.append(value.clone())
+                self.storeW.append(value.clone())
                 #print(value.data.view(1,-1))
                 self.Z.append(value.data.clone())
                 self.U.append(value.data.clone().zero_())
@@ -112,10 +114,12 @@ class admm_op():
             #print('norm_r:',norm_r)
             #print('norm_s:',norm_s)
             if norm_r > self.mu * norm_s:
-                self.rho[i] = self.rho[i] * self.tau_incr
-                # the scaled dual variable u = (1/ρ)y must also be rescaled
-                #after updating ρ
-                self.U[i] = self.U[i] / self.tau_incr
+                # set upper bound of rho
+                if self.rho[i] < 0.4:
+                    self.rho[i] = self.rho[i] * self.tau_incr
+                    # the scaled dual variable u = (1/ρ)y must also be rescaled
+                    #after updating ρ
+                    self.U[i] = self.U[i] / self.tau_incr
             elif norm_s > self.mu * norm_r:
                 self.rho[i] = self.rho[i] / self.tau_decr
                 # the scaled dual variable u = (1/ρ)y must also be rescaled
@@ -172,3 +176,12 @@ class admm_op():
             if key in layerdict:
                 self.model.state_dict()[key].copy_(self.Z[i])
                 i = i + 1
+
+    def applyquantW(self):
+        for i in range(len(self.W)):
+            self.storeW[i] = self.W[i].clone()
+            self.W[i].data.copy_(self.Z[i])
+
+    def restoreW(self):
+        for i in range(len(self.W)):
+            self.W[i].data.copy_(self.storeW[i])

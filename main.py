@@ -36,6 +36,10 @@ def test(val_loader, model, epoch, args):
 
     with torch.no_grad():
         end = time.time()
+        
+        if args.admm:
+            admm.applyquantW()
+
         for i, (images, target) in enumerate(val_loader):
             #if args.gpu is not None:
             #    images = images.cuda(args.gpu, non_blocking=True)
@@ -72,6 +76,7 @@ def test(val_loader, model, epoch, args):
               .format(top1=top1, top5=top5))
 
         if args.admm:
+            admm.restoreW()
             if args.evaluate:
                 weightsdistribute(model)
 
@@ -482,20 +487,23 @@ if __name__=='__main__':
             save_state(model,bestacc,epoch,args,optimizer, False)
         print('best acc so far:{:4.2f}'.format(bestacc))
 
+    layerdict = ['module.conv1.0.weight', 'module.conv2.0.weight', 'module.conv3.0.weight','module.conv4.0.weight','module.conv5.0.weight','module.conv6.0.weight','module.conv7.0.weight']
+
     if args.admm:
         # save the last quantized value
         save_state(model,acc,epoch,args, optimizer, True)
         weightsdistribute(model)
-        '''
+        
         total_bit = 0
         total_param = 0
         i = 0
         for key, value in model.named_parameters():
-            if '.0.weight' in key:
+            #if '.0.weight' in key:
+            if key in layerdict:
                 total_param = total_param + value.numel()
                 total_bit = total_bit + value.numel() * args.bits[i]
                 i = i + 1
 
         print('aver bits: {:10d} / {:5d} = {:5.3f}'.format(total_bit, total_param, total_bit / total_param))
-        '''
+        
 

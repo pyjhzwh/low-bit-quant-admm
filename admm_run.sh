@@ -58,16 +58,16 @@ COMMAND1
 
 bitsets=(
     "  1 1  1 1 1  1 1 "
-#    "  2 2  1 1 1  2 2 "
-#    "  2 2  2 2 2  1 1 "
-#    "  1 1  1 1 1  2 2 "
-#    "  1 1  2 2 2  1 1 "
-#    "  2 2  1 1 1  1 1 "
+    #"  2 2  1 1 1  2 2 "
+    #"  2 2  2 2 2  1 1 "
+    #"  1 1  1 1 1  2 2 "
+    #"  1 1  2 2 2  1 1 "
+    #"  2 2  1 1 1  1 1 "
 )
 for i in "${bitsets[@]}"; do
     echo "" >> ${DIR}/admm.layerwise.log
     echo "$i" >> ${DIR}/admm.layerwise.log
     echo "--arch all_cnn_c --dataset cifar10 --lr 1e-3 --epochs 1000 --wd 1e-3 --admm --admm-iter 10 --pretrained saved_models/best.all_cnn_c.32.32.ckp_origin.pth.tar --bits ${i}" >> ${DIR}/admm.layerwise.log
-    CUDA_VISIBLE_DEVICES=2 python3 main.py --arch all_cnn_c --dataset cifar10 --lr 1e-3 --epochs 1000 --wd 1e-3 --admm --admm-iter 10 --pretrained saved_models/best.all_cnn_c.32.32.ckp_origin.pth.tar --bits ${i} --lr_epochs 100 &> ${DIR}/admm.pretrained_1.log 2>&1
+    CUDA_VISIBLE_DEVICES=2 python3 main.py --arch all_cnn_c --dataset cifar10 --lr 1e-3 --epochs 1000 --wd 1e-3 --admm --admm-iter 10 --pretrained saved_models/best.all_cnn_c.32.32.ckp_origin.pth.tar --bits ${i} --lr_epochs 100 &> ${DIR}/admm.pretrained.log 2>&1
     tac ${DIR}/admm.pretrained.log | sed -e '/Acc@1/q' | tac >> ${DIR}/admm.layerwise.log
 done
